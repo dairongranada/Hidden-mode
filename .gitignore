@@ -1,0 +1,16 @@
+# Compilados e instaladores (se generan con build.ps1)
+dist/
+build/
+installer/
+*.spec
+
+# Nunca subir datos de la bóveda ni respaldos
+vault_data/
+*.vbk
+*.dat
+
+# Python / pruebas locales
+__pycache__/
+*.pyc
+_*.py
+*.log
