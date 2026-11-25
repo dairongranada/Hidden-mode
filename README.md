@@ -36,7 +36,7 @@ La primera vez pide crear una contraseña maestra.
 powershell -ExecutionPolicy Bypass -File build.ps1
 ```
 
-Genera `dist\Boveda.exe` y, si tienes [Inno Setup 6](https://jrsoftware.org/isinfo.php) instalado, `installer\Boveda_Setup.exe`.
+Genera `dist\Notas.exe` y, si tienes [Inno Setup 6](https://jrsoftware.org/isinfo.php) instalado, `installer\Boveda_Setup.exe`.
 
 ## Actualizaciones
 

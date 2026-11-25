@@ -22,7 +22,8 @@ from cryptography.exceptions import InvalidTag
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from cryptography.hazmat.primitives.kdf.scrypt import Scrypt
 
-VERSION = "2.1.3"
+VERSION = "2.2.0"
+APP_NAME = "Notas"  # nombre visible de la app (ventanas, mensajes, instalador)
 MAGIC = b"VLT1"
 CHUNK = 1024 * 1024  # 1 MB
 FILE_EXT = ".dat"
@@ -159,7 +160,7 @@ def migrate_old_vault():
 
 
 # ---------------------------------------------------------------- ajustes
-DEFAULT_SETTINGS = {"idle_minutes": 5, "lock_on_minimize": True, "block_capture": False, "title": "Bóveda",
+DEFAULT_SETTINGS = {"idle_minutes": 5, "lock_on_minimize": True, "block_capture": False, "title": APP_NAME,
                     "check_updates": True}
 
 
@@ -170,6 +171,8 @@ def load_settings() -> dict:
             s.update(json.load(f))
     except Exception:
         pass
+    if s.get("title") == "Bóveda":  # nombre antiguo guardado en ajustes
+        s["title"] = APP_NAME
     return s
 
 
@@ -403,7 +406,7 @@ class Vault:
             except Exception:
                 continue
         if data is None:
-            raise RuntimeError("El índice de la bóveda está dañado y no hay copia de respaldo.")
+            raise RuntimeError("El índice de los datos está dañado y no hay copia de respaldo.")
         self.key = key
         if isinstance(data, list):  # formato antiguo
             data = {"items": data, "albums": []}
@@ -537,7 +540,7 @@ def import_backup(src_zip: str, base=None, progress=None) -> str:
         names = [n for n in z.namelist() if not n.endswith("/")]
         bad = [n for n in names if not _BACKUP_NAME.match(n)]
         if bad or "cfg.dat" not in names or "idx.dat" not in names:
-            raise ValueError("El archivo no es un respaldo válido de la bóveda.")
+            raise ValueError("El archivo no es un respaldo válido.")
         folder = new_vault_dir(base)
         os.makedirs(os.path.join(folder, "sym"), exist_ok=True)
         os.makedirs(os.path.join(folder, "thm"), exist_ok=True)

@@ -1,4 +1,4 @@
-"""Bóveda - interfaz (customtkinter). La lógica de cifrado está en vault.py."""
+"""Interfaz (customtkinter). La lógica de cifrado está en vault.py."""
 import ctypes
 import glob
 import io
@@ -59,6 +59,15 @@ IDLE_CHOICES = {"1 minuto": 1, "2 minutos": 2, "5 minutos": 5, "10 minutos": 10,
 def resource_path(name):
     base = getattr(sys, "_MEIPASS", os.path.dirname(os.path.abspath(__file__)))
     return os.path.join(base, name)
+
+
+def logo_image(size):
+    """Icono de la app para las pantallas (None si no se encuentra el archivo)."""
+    try:
+        img = Image.open(resource_path("icon.ico")).convert("RGBA")
+        return ctk.CTkImage(light_image=img, dark_image=img, size=(size, size))
+    except Exception:
+        return None
 
 
 def fmt_size(n):
@@ -341,7 +350,7 @@ class PasswordDialog(ctk.CTkToplevel):
             return self.msg.configure(text=f"Error: {e}", text_color=DANGER)
         if not ok:
             return self.msg.configure(text="La contraseña actual es incorrecta.", text_color=DANGER)
-        messagebox.showinfo("Bóveda", "Contraseña cambiada. Úsala la próxima vez que abras la bóveda.", parent=self)
+        messagebox.showinfo(core.APP_NAME, "Contraseña cambiada. Úsala la próxima vez que abras la app.", parent=self)
         self.destroy()
 
 
@@ -379,14 +388,14 @@ class SettingsDialog(ctk.CTkToplevel):
         row.pack(fill="x", padx=28)
         self.title_entry = ctk.CTkEntry(row, height=36, fg_color=CARD, border_color=CARD)
         self.title_entry.pack(side="left", fill="x", expand=True)
-        self.title_entry.insert(0, s.get("title", "Bóveda"))
+        self.title_entry.insert(0, s.get("title", core.APP_NAME))
         ctk.CTkButton(row, text="Aplicar título", width=110, height=36, fg_color=CARD, hover_color=CARD_SEL,
                       command=self.apply_title).pack(side="right", padx=(8, 0))
         ctk.CTkLabel(self, text="Es el nombre que se ve en la barra de la ventana.", text_color=MUTED,
                      font=ctk.CTkFont(size=11)).pack(padx=28, anchor="w")
 
         section("RESPALDO")
-        ctk.CTkButton(self, text="Respaldar bóveda…", height=36, fg_color=CARD, hover_color=CARD_SEL,
+        ctk.CTkButton(self, text="Respaldar datos…", height=36, fg_color=CARD, hover_color=CARD_SEL,
                       command=lambda: (self.destroy(), app.backup_vault())).pack(fill="x", padx=28)
         ctk.CTkLabel(self, text="Para restaurar, usa «Restaurar respaldo» en la pantalla de acceso.",
                      text_color=MUTED, font=ctk.CTkFont(size=11)).pack(padx=28, anchor="w")
@@ -394,7 +403,7 @@ class SettingsDialog(ctk.CTkToplevel):
         section("ACTUALIZACIONES")
         row = ctk.CTkFrame(self, fg_color="transparent")
         row.pack(fill="x", padx=28)
-        sw = ctk.CTkSwitch(row, text="Buscar al abrir la bóveda", progress_color=ACCENT, text_color=TEXT,
+        sw = ctk.CTkSwitch(row, text="Buscar al abrir la app", progress_color=ACCENT, text_color=TEXT,
                            command=lambda: app.update_setting("check_updates", bool(sw.get())))
         sw.pack(side="left")
         if s.get("check_updates", True):
@@ -402,7 +411,7 @@ class SettingsDialog(ctk.CTkToplevel):
         ctk.CTkButton(row, text="Buscar ahora", width=110, height=32, fg_color=CARD, hover_color=CARD_SEL,
                       command=lambda: app.check_updates(manual=True)).pack(side="right")
 
-        section("UBICACIÓN DE LA BÓVEDA")
+        section("UBICACIÓN DE LOS DATOS")
         ctk.CTkLabel(self, text=core.DATA_DIR, text_color=TEXT, wraplength=400, justify="left",
                      font=ctk.CTkFont(size=11)).pack(padx=28, anchor="w")
         ctk.CTkLabel(self, text=f"F12 o Ctrl+L bloquean al instante     ·     by @dairongranadaa  ·  v{core.VERSION}",
@@ -419,7 +428,7 @@ class SettingsDialog(ctk.CTkToplevel):
             sw.select()
 
     def apply_title(self):
-        self.app.update_setting("title", self.title_entry.get().strip() or "Bóveda")
+        self.app.update_setting("title", self.title_entry.get().strip() or core.APP_NAME)
 
 
 # ---------------------------------------------------------------- tarjeta
@@ -654,7 +663,7 @@ class App(*_Base):
         purge_stale_temp()
         self.login_state, self.login_dir = core.resolve_location()
         self.settings = core.load_settings()
-        self.title(self.settings.get("title") or "Bóveda")
+        self.title(self.settings.get("title") or core.APP_NAME)
         icon = resource_path("icon.ico")
         if os.path.exists(icon):  # CTk pone su propio icono tras 200 ms
             self.after(300, lambda: self._safe(lambda: self.iconbitmap(icon)))
@@ -769,7 +778,7 @@ class App(*_Base):
     def show_login(self):
         self.clear_window()
         self.unbind("<Return>")
-        self.title(self.settings.get("title") or "Bóveda")
+        self.title(self.settings.get("title") or core.APP_NAME)
         self.minsize(400, 560)
         self.center(440, 700)
         state = self.login_state
@@ -777,10 +786,10 @@ class App(*_Base):
 
         card = ctk.CTkFrame(self, fg_color=PANEL, corner_radius=20)
         card.place(relx=0.5, rely=0.5, anchor="center", relwidth=0.88)
-        ctk.CTkLabel(card, text="🔒", font=ctk.CTkFont(size=54)).pack(pady=(26, 0))
-        ctk.CTkLabel(card, text="Bóveda", font=ctk.CTkFont(size=28, weight="bold"), text_color=TEXT).pack()
+        ctk.CTkLabel(card, text="", image=logo_image(64)).pack(pady=(26, 6))
+        ctk.CTkLabel(card, text=core.APP_NAME, font=ctk.CTkFont(size=28, weight="bold"), text_color=TEXT).pack()
         sub = {"create": "Crea tu contraseña maestra", "unlock": "Ingresa para continuar",
-               "missing": "No se encuentra la bóveda"}[state]
+               "missing": "No se encuentran los datos"}[state]
         ctk.CTkLabel(card, text=sub, text_color=MUTED).pack(pady=(0, 16))
 
         self.login_msg = ctk.CTkLabel(card, text="", text_color=DANGER, wraplength=320)
@@ -818,7 +827,7 @@ class App(*_Base):
                                 text_color=MUTED, fg_color=ACCENT, hover_color=ACCENT_H,
                                 font=ctk.CTkFont(size=11)).pack(padx=28, pady=(8, 0), anchor="w")
             self.login_msg.pack(pady=(10, 0))
-            self.login_btn = ctk.CTkButton(card, text="Crear bóveda" if creating else "Desbloquear", height=44,
+            self.login_btn = ctk.CTkButton(card, text="Crear" if creating else "Entrar", height=44,
                                            corner_radius=10, fg_color=ACCENT, hover_color=ACCENT_H,
                                            font=ctk.CTkFont(size=14, weight="bold"), command=self.submit_login)
             self.login_btn.pack(fill="x", padx=28, pady=(8, 8))
@@ -830,7 +839,7 @@ class App(*_Base):
 
         links = ctk.CTkFrame(card, fg_color="transparent")
         links.pack(pady=(4, 18))
-        for text, cmd in (("Abrir otra bóveda…", self.open_other_vault), ("Restaurar respaldo…", self.restore_backup)):
+        for text, cmd in (("Abrir otros datos…", self.open_other_vault), ("Restaurar respaldo…", self.restore_backup)):
             ctk.CTkButton(links, text=text, width=150, height=26, fg_color="transparent", hover_color=CARD,
                           text_color=MUTED, font=ctk.CTkFont(size=11), command=cmd).pack(side="left", padx=2)
         self.after(250, lambda: self.apply_capture_to(self))
@@ -854,7 +863,7 @@ class App(*_Base):
             pass
 
     def pick_location(self):
-        d = filedialog.askdirectory(title="¿Dónde guardar la bóveda? (por ejemplo una USB)")
+        d = filedialog.askdirectory(title="¿Dónde guardar los datos? (por ejemplo una USB)")
         if d:
             self.create_base = d
             self.loc_label.configure(text=f"Ubicación: {d}")
@@ -865,13 +874,13 @@ class App(*_Base):
         self.show_login()
 
     def open_other_vault(self):
-        d = filedialog.askdirectory(title="Elige la carpeta de la bóveda (o la unidad donde está)")
+        d = filedialog.askdirectory(title="Elige la carpeta de los datos (o la unidad donde están)")
         if not d:
             return
         found = core.find_vault(d)
         if not found:
-            return messagebox.showerror("Bóveda", "No se encontró ninguna bóveda en esa carpeta.")
-        remember = messagebox.askyesno("Bóveda", "¿Recordar esta ubicación en este PC?\n\n"
+            return messagebox.showerror(core.APP_NAME, "No se encontraron datos en esa carpeta.")
+        remember = messagebox.askyesno(core.APP_NAME, "¿Recordar esta ubicación en este PC?\n\n"
                                                  "Si eliges «No», tendrás que seleccionarla cada vez que abras la app.")
         core.set_data_dir(found)
         core.write_pointer(found if remember else None)
@@ -881,7 +890,7 @@ class App(*_Base):
 
     def restore_backup(self):
         src = filedialog.askopenfilename(title="Elige el archivo de respaldo",
-                                         filetypes=[("Respaldo de Bóveda", "*.vbk *.zip"), ("Todos", "*.*")])
+                                         filetypes=[("Respaldo", "*.vbk *.zip"), ("Todos", "*.*")])
         if not src:
             return
         self.login_msg.configure(text="Restaurando respaldo…", text_color=MUTED)
@@ -899,13 +908,13 @@ class App(*_Base):
     def _restore_done(self, folder, err):
         if err:
             self.login_msg.configure(text="", text_color=DANGER)
-            return messagebox.showerror("Bóveda", f"No se pudo restaurar:\n{err}")
+            return messagebox.showerror(core.APP_NAME, f"No se pudo restaurar:\n{err}")
         core.set_data_dir(folder)
         core.write_pointer(folder)
         self.login_dir, self.login_state = folder, "unlock"
         self.settings = core.load_settings()
         self.show_login()
-        messagebox.showinfo("Bóveda", "Respaldo restaurado. Ingresa con la contraseña que tenía esa bóveda.")
+        messagebox.showinfo(core.APP_NAME, "Respaldo restaurado. Ingresa con la contraseña que tenía ese respaldo.")
 
     def submit_login(self):
         if self.vault.key or self.login_state == "missing" or self.pw1 is None:
@@ -951,7 +960,7 @@ class App(*_Base):
     # --- pantalla principal
     def show_main(self):
         self.clear_window()
-        self.title(self.settings.get("title") or "Bóveda")
+        self.title(self.settings.get("title") or core.APP_NAME)
         self.minsize(980, 600)
         self.center(1200, 760)
         self.grid_columnconfigure(1, weight=1)
@@ -963,7 +972,7 @@ class App(*_Base):
         self.side = side = ctk.CTkFrame(self, width=240, corner_radius=0, fg_color=PANEL)
         side.grid(row=0, column=0, sticky="nsew")
         side.pack_propagate(False)
-        ctk.CTkButton(side, text="🔒  Bloquear  (F12)", height=38, corner_radius=10, fg_color=CARD,
+        ctk.CTkButton(side, text="Bloquear  (F12)", height=38, corner_radius=10, fg_color=CARD,
                       hover_color=CARD_SEL, command=self.lock).pack(side="bottom", fill="x", padx=16, pady=(6, 16))
         ctk.CTkButton(side, text="⚙  Ajustes", height=38, corner_radius=10, fg_color=CARD, hover_color=CARD_SEL,
                       command=lambda: SettingsDialog(self)).pack(side="bottom", fill="x", padx=16, pady=(6, 0))
@@ -974,7 +983,8 @@ class App(*_Base):
                                      fg_color=ACCENT, hover_color=ACCENT_H,
                                      font=ctk.CTkFont(size=14, weight="bold"), command=self.add_files)
         self.btn_add.pack(side="bottom", fill="x", padx=16, pady=(8, 0))
-        ctk.CTkLabel(side, text="🔒  Bóveda", font=ctk.CTkFont(size=22, weight="bold"),
+        ctk.CTkLabel(side, text="  " + core.APP_NAME, image=logo_image(30), compound="left",
+                     font=ctk.CTkFont(size=22, weight="bold"),
                      text_color=TEXT).pack(anchor="w", padx=22, pady=(24, 16))
         self.cat_btns = {}
         for key, label, icon in CATEGORIES:
@@ -1193,7 +1203,7 @@ class App(*_Base):
         if not name:
             return
         if not self.vault.add_album(name):
-            return messagebox.showwarning("Bóveda", "Ya existe un álbum con ese nombre.")
+            return messagebox.showwarning(core.APP_NAME, "Ya existe un álbum con ese nombre.")
         if move:
             self.move_to(move, name)
         else:
@@ -1204,7 +1214,7 @@ class App(*_Base):
         if not new or new == old:
             return
         if not self.vault.rename_album(old, new):
-            return messagebox.showwarning("Bóveda", "Ya existe un álbum con ese nombre.")
+            return messagebox.showwarning(core.APP_NAME, "Ya existe un álbum con ese nombre.")
         if self.view == ("album", old):
             self.view = ("album", new)
         self.refresh()
@@ -1449,7 +1459,7 @@ class App(*_Base):
         if delete and not messagebox.askyesno(
                 "Triturar originales",
                 f"Se sobrescribirán y borrarán de forma permanente los {len(entries)} archivo(s) originales "
-                "después de guardarlos en la bóveda.\n\n¿Continuar?"):
+                "después de guardarlos.\n\n¿Continuar?"):
             return
         vault, gen = self.vault, self.gen
         self.set_busy(True)
@@ -1568,8 +1578,8 @@ class App(*_Base):
             return
         dst = filedialog.asksaveasfilename(
             title="Guardar respaldo", defaultextension=".vbk",
-            initialfile=f"respaldo-boveda-{time.strftime('%Y%m%d')}.vbk",
-            filetypes=[("Respaldo de Bóveda", "*.vbk")])
+            initialfile=f"respaldo-{time.strftime('%Y%m%d')}.vbk",
+            filetypes=[("Respaldo", "*.vbk")])
         if not dst:
             return
         gen = self.gen
@@ -1590,7 +1600,7 @@ class App(*_Base):
         sel = self.selected()
         if not sel or self.busy:
             return
-        if not messagebox.askyesno("Eliminar", f"¿Eliminar {len(sel)} archivo(s) de la bóveda?\n"
+        if not messagebox.askyesno("Eliminar", f"¿Eliminar {len(sel)} archivo(s)?\n"
                                                "Esta acción no se puede deshacer."):
             return
         for it in sel:

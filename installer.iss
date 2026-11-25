@@ -1,24 +1,31 @@
-; Script de Inno Setup para instalar Bóveda en cualquier PC con Windows.
+; Script de Inno Setup para instalar la app en Windows.
 ; Compilar:  ISCC.exe installer.iss   ->  installer\Boveda_Setup.exe
 
-#define AppName "Bóveda"
+; Nombre visible (menú Inicio, "Aplicaciones", asistente). Debe coincidir con APP_NAME en vault.py.
+#define AppName "Notas"
 ; build.ps1 pasa la versión real (la de vault.py) con /DAppVersion=...
 #ifndef AppVersion
-  #define AppVersion "2.1.0"
+  #define AppVersion "2.2.0"
 #endif
-#define AppExe "Boveda.exe"
+#define AppExe "Notas.exe"
+; Nombres de versiones anteriores, que se limpian al actualizar.
+#define OldExe "Boveda.exe"
+#define OldShortcut "B*veda"
 
 [Setup]
 AppId={{B3F1C2A4-7D5E-4F88-9A6B-2E1D4C7A9F10}
 AppName={#AppName}
 AppVersion={#AppVersion}
 AppPublisher=@dairongranadaa
-DefaultDirName={autopf}\Boveda
+; Las instalaciones existentes conservan su carpeta anterior; solo las nuevas usan esta.
+DefaultDirName={autopf}\Notas
 DefaultGroupName={#AppName}
 UninstallDisplayIcon={app}\{#AppExe}
 SetupIconFile=icon.ico
 CloseApplications=yes
 OutputDir=installer
+; OJO: este nombre de archivo lo busca el actualizador de las apps ya instaladas (updater.INSTALLER_NAME).
+; No lo cambies hasta que todas las copias estén en una versión que busque el nombre nuevo.
 OutputBaseFilename=Boveda_Setup
 Compression=lzma2
 SolidCompression=yes
@@ -35,6 +42,12 @@ Name: "spanish"; MessagesFile: "compiler:Languages\Spanish.isl"
 [Tasks]
 Name: "desktopicon"; Description: "Crear un acceso directo en el escritorio"; GroupDescription: "Accesos directos:"
 
+[InstallDelete]
+; Al actualizar desde una versión con el nombre anterior: quita el ejecutable y los accesos viejos.
+Type: files; Name: "{app}\{#OldExe}"
+Type: files; Name: "{autoprograms}\{#OldShortcut}.lnk"
+Type: files; Name: "{autodesktop}\{#OldShortcut}.lnk"
+
 [Files]
 Source: "dist\{#AppExe}"; DestDir: "{app}"; Flags: ignoreversion
 
@@ -42,8 +55,8 @@ Source: "dist\{#AppExe}"; DestDir: "{app}"; Flags: ignoreversion
 Name: "{autoprograms}\{#AppName}"; Filename: "{app}\{#AppExe}"
 Name: "{autodesktop}\{#AppName}"; Filename: "{app}\{#AppExe}"; Tasks: desktopicon
 
-; Importante: NO se borra la bóveda al desinstalar (está en una carpeta CLR_xxxx o CLRCache dentro de
-; %LOCALAPPDATA%\Microsoft, o donde la hayas elegido), así no pierdes tus archivos al reinstalar o actualizar.
+; Importante: los datos NO se borran al desinstalar (están en una carpeta dentro de
+; %LOCALAPPDATA%\Microsoft, o donde la hayas elegido), así no se pierden al reinstalar o actualizar.
 
 [Run]
 Filename: "{app}\{#AppExe}"; Description: "Abrir {#AppName}"; Flags: nowait postinstall skipifsilent
