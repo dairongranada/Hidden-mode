@@ -22,7 +22,7 @@ from cryptography.exceptions import InvalidTag
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from cryptography.hazmat.primitives.kdf.scrypt import Scrypt
 
-VERSION = "2.2.0"
+VERSION = "2.3.0"
 APP_NAME = "Notas"  # nombre visible de la app (ventanas, mensajes, instalador)
 MAGIC = b"VLT1"
 CHUNK = 1024 * 1024  # 1 MB
@@ -222,6 +222,11 @@ def register_success():
 
 
 # ---------------------------------------------------------------- cripto
+def is_pin(text: str) -> bool:
+    """True si es un PIN válido: exactamente 4 dígitos."""
+    return isinstance(text, str) and len(text) == 4 and all(c in "0123456789" for c in text)
+
+
 def derive_key(password: str, salt: bytes, n: int = SCRYPT_N_OLD) -> bytes:
     return Scrypt(salt=salt, length=32, n=n, r=8, p=1).derive(password.encode("utf-8"))
 
@@ -376,7 +381,7 @@ class Vault:
     def _wrap(master: bytes, password: str) -> dict:
         salt = secrets.token_bytes(16)
         kek = derive_key(password, salt, SCRYPT_N)
-        return {"v": 2, "salt": base64.b64encode(salt).decode(), "n": SCRYPT_N,
+        return {"v": 2, "auth": "pin" if is_pin(password) else "password", "salt": base64.b64encode(salt).decode(), "n": SCRYPT_N,
                 "wrapped": base64.b64encode(encrypt_bytes(kek, master)).decode()}
 
     def create(self, password: str, base=None, remember=True):
@@ -415,6 +420,21 @@ class Vault:
         for it in self.items:
             it.setdefault("album", "")
         return True
+
+    @staticmethod
+    def auth_kind() -> str:
+        """'pin' si el acceso es un PIN de 4 dígitos; 'password' en datos antiguos con contraseña."""
+        try:
+            with open(META_PATH) as f:
+                return "pin" if json.load(f).get("auth") == "pin" else "password"
+        except Exception:
+            return "password"
+
+    def rewrap(self, new_password: str):
+        """Cambia el acceso sin pedir el anterior (los datos ya están abiertos). No recifra los archivos."""
+        if self.key is None:
+            raise RuntimeError("Los datos están cerrados.")
+        self._write_meta(self._wrap(self.key, new_password))
 
     def change_password(self, old: str, new: str) -> bool:
         meta = self._read_meta()

@@ -2,6 +2,7 @@
 import ctypes
 import glob
 import io
+import math
 import os
 import queue
 import shutil
@@ -46,10 +47,10 @@ PAGE = 60            # tarjetas que se dibujan por tanda
 MAX_THUMBS = 400     # miniaturas en memoria
 
 CATEGORIES = (
-    ("Todos", "Todos", "▦"),
-    ("Imagen", "Imágenes", "▣"),
-    ("Video", "Videos", "▶"),
-    ("Documento", "Documentos", "≡"),
+    ("Todos", "Todos", "grid"),
+    ("Imagen", "Imágenes", "image"),
+    ("Video", "Videos", "play"),
+    ("Documento", "Documentos", "doc"),
 )
 SORTS = ("Más recientes", "Más antiguos", "Nombre (A-Z)", "Nombre (Z-A)", "Más grandes", "Más pequeños")
 IDLE_CHOICES = {"1 minuto": 1, "2 minutos": 2, "5 minutos": 5, "10 minutos": 10,
@@ -68,6 +69,82 @@ def logo_image(size):
         return ctk.CTkImage(light_image=img, dark_image=img, size=(size, size))
     except Exception:
         return None
+
+
+_line_icon_cache = {}
+
+
+def line_icon(name, color="#8d9099", size=20):
+    """Icono de línea dibujado a mano (mismo trazo en todos) como CTkImage."""
+    key = (name, color, size)
+    if key in _line_icon_cache:
+        return _line_icon_cache[key]
+    k = 10
+    S = size * k
+    img = Image.new("RGBA", (S, S), (0, 0, 0, 0))
+    d = ImageDraw.Draw(img)
+    u = S / 24.0
+    w = max(int(round(2 * u)), 2)
+    r = w / 2
+
+    def pt(p):
+        return (p[0] * u, p[1] * u)
+
+    def dot(x, y):
+        d.ellipse((x - r, y - r, x + r, y + r), fill=color)
+
+    def line(*pts):
+        P = [pt(p) for p in pts]
+        d.line(P, fill=color, width=w, joint="curve")
+        dot(*P[0])
+        dot(*P[-1])
+
+    def box(x0, y0, x1, y1, rad=2.0):
+        d.rounded_rectangle((x0 * u, y0 * u, x1 * u, y1 * u), radius=rad * u, outline=color, width=w)
+
+    def circle(cx, cy, rad):
+        d.ellipse(((cx - rad) * u, (cy - rad) * u, (cx + rad) * u, (cy + rad) * u), outline=color, width=w)
+
+    if name == "grid":
+        for x, y in ((3, 3), (14, 3), (3, 14), (14, 14)):
+            box(x, y, x + 7, y + 7, 1.6)
+    elif name == "image":
+        box(3, 3, 21, 21, 2.5)
+        circle(9, 9, 1.6)
+        line((21, 15), (16.5, 10.5), (6, 21))
+    elif name == "play":
+        circle(12, 12, 9.5)
+        d.polygon([pt((10, 8)), pt((16.2, 12)), pt((10, 16))], fill=color)
+    elif name == "doc":
+        box(4.5, 2.5, 19.5, 21.5, 2.2)
+        line((8, 7.5), (11, 7.5))
+        line((8, 12), (16, 12))
+        line((8, 16.5), (14, 16.5))
+    elif name == "folder":
+        box(2.5, 7, 21.5, 20, 2.2)
+        line((2.5, 10), (2.5, 5.5), (9, 5.5), (11.2, 7.8))
+    elif name == "plus":
+        line((12, 5), (12, 19))
+        line((5, 12), (19, 12))
+    elif name == "sliders":
+        line((4, 8), (12, 8))
+        line((18, 8), (20, 8))
+        line((4, 16), (6, 16))
+        line((12, 16), (20, 16))
+        circle(15, 8, 2.4)
+        circle(9, 16, 2.4)
+    elif name == "power":
+        line((12, 3), (12, 11))
+        d.arc((4 * u, 4 * u, 20 * u, 20 * u), start=-55, end=235, width=w)
+        for ang in (-55, 235):
+            dot((12 + 8 * math.cos(math.radians(ang))) * u, (12 + 8 * math.sin(math.radians(ang))) * u)
+    elif name == "arrow_up":
+        line((12, 19), (12, 5))
+        line((5.5, 11.5), (12, 5), (18.5, 11.5))
+    out = img.resize((size * 3, size * 3), Image.LANCZOS)
+    res = ctk.CTkImage(light_image=out, dark_image=out, size=(size, size))
+    _line_icon_cache[key] = res
+    return res
 
 
 def fmt_size(n):
@@ -307,41 +384,172 @@ def ask_text(parent, title, prompt, initial="", button="Aceptar"):
     return d.result or None
 
 
-class PasswordDialog(ctk.CTkToplevel):
+_DIGITS = "0123456789"
+
+
+class PinBoxes(ctk.CTkFrame):
+    """Cuatro casillas de un dígito para el PIN. `command` se llama al completar el cuarto dígito."""
+
+    def __init__(self, master, command=None, size=56):
+        super().__init__(master, fg_color="transparent")
+        self.command = command
+        self.boxes = []
+        for i in range(4):
+            e = ctk.CTkEntry(self, width=size, height=size + 6, justify="center", show="•",
+                             font=ctk.CTkFont(size=26, weight="bold"), corner_radius=12, fg_color=CARD,
+                             border_width=2, border_color=CARD, text_color=TEXT)
+            e.grid(row=0, column=i, padx=6)
+            e.bind("<KeyPress>", lambda ev, i=i: self._on_key(i, ev))
+            e.bind("<FocusIn>", lambda ev, i=i: self._focus(i, True))
+            e.bind("<FocusOut>", lambda ev, i=i: self._focus(i, False))
+            e.bind("<<Paste>>", lambda ev, i=i: self._on_paste(i))
+            self.boxes.append(e)
+
+    # --- lectura
+    def value(self):
+        return "".join(b.get()[:1] for b in self.boxes if b.get()[:1] in _DIGITS and b.get())
+
+    def complete(self):
+        return len(self.value()) == 4
+
+    # --- escritura
+    def _set(self, i, ch):
+        b = self.boxes[i]
+        b.delete(0, "end")
+        if ch:
+            b.insert(0, ch)
+
+    def _type_digit(self, i, ch):
+        self._set(i, ch)
+        if i < 3:
+            self.boxes[i + 1].focus_set()
+        elif self.complete() and self.command:
+            self.after(80, self.command)
+
+    def feed(self, text):
+        """Escribe los dígitos de `text` desde la primera casilla, como si se teclearan."""
+        self.clear(focus=False)
+        for i, ch in enumerate(text[:4]):
+            if ch in _DIGITS:
+                self._type_digit(i, ch)
+
+    def clear(self, focus=True):
+        for b in self.boxes:
+            b.delete(0, "end")
+        if focus:
+            self.focus_first()
+
+    def focus_first(self):
+        for b in self.boxes:
+            if not b.get():
+                b.focus_set()
+                return
+        self.boxes[0].focus_set()
+
+    def set_state(self, state):
+        for b in self.boxes:
+            b.configure(state=state)
+
+    # --- eventos
+    def _on_key(self, i, ev):
+        ks, ch = ev.keysym, ev.char
+        if ev.state & 0x4 or ev.state & 0x20000:  # Ctrl o Alt: atajos (pegar, F12, etc.)
+            return None
+        digit = ch if (ch and ch in _DIGITS) else None
+        if digit is None and len(ks) == 1 and ks in _DIGITS:
+            digit = ks
+        if digit is None and ks.startswith("KP_") and ks[3:] in list(_DIGITS):
+            digit = ks[3:]
+        if digit is not None:
+            self._type_digit(i, digit)
+            return "break"
+        if ks == "BackSpace":
+            if self.boxes[i].get():
+                self._set(i, "")
+            elif i > 0:
+                self.boxes[i - 1].focus_set()
+                self._set(i - 1, "")
+            return "break"
+        if ks == "Delete":
+            self._set(i, "")
+            return "break"
+        if ks == "Left":
+            self.boxes[max(i - 1, 0)].focus_set()
+            return "break"
+        if ks == "Right":
+            self.boxes[min(i + 1, 3)].focus_set()
+            return "break"
+        if (ks in ("Tab", "ISO_Left_Tab", "Return", "KP_Enter", "Escape") or ks.startswith("F")
+                or ks.endswith(("_L", "_R"))):
+            return None  # teclas de navegación y modificadores siguen su curso
+        return "break"  # cualquier otro carácter se ignora
+
+    def _on_paste(self, i):
+        try:
+            digits = [c for c in self.clipboard_get() if c in _DIGITS]
+        except tk.TclError:
+            digits = []
+        for j, ch in enumerate(digits[:4 - i]):
+            self._set(i + j, ch)
+        last = min(i + len(digits), 3)
+        self.boxes[last].focus_set()
+        if self.complete() and self.command:
+            self.after(80, self.command)
+        return "break"
+
+    def _focus(self, i, on):
+        try:
+            self.boxes[i].configure(border_color=ACCENT if on else CARD)
+        except tk.TclError:
+            pass
+
+    def flash_error(self):
+        try:
+            for b in self.boxes:
+                b.configure(border_color=DANGER)
+            self.after(700, lambda: [self._focus(i, False) for i in range(4)])
+        except tk.TclError:
+            pass
+
+
+class PinDialog(ctk.CTkToplevel):
+    """Cambiar el PIN: PIN actual, PIN nuevo y repetición."""
+
     def __init__(self, app):
         super().__init__(app)
         self.app = app
-        self.title("Cambiar contraseña")
+        self.title("Cambiar PIN")
         self.configure(fg_color=PANEL)
         self.resizable(False, False)
         self.transient(app)
-        center_over(self, app, 400, 380)
-        self.fields = []
-        for label in ("Contraseña actual", "Contraseña nueva (mín. 8)", "Repite la nueva"):
-            ctk.CTkLabel(self, text=label, text_color=MUTED).pack(padx=28, pady=(14, 2), anchor="w")
-            e = ctk.CTkEntry(self, show="•", height=38, fg_color=CARD, border_color=CARD)
-            e.pack(fill="x", padx=28)
-            self.fields.append(e)
+        center_over(self, app, 400, 500)
+        self.rows = []
+        for label in ("PIN actual", "PIN nuevo", "Repite el PIN nuevo"):
+            ctk.CTkLabel(self, text=label, text_color=MUTED).pack(padx=28, pady=(16, 4), anchor="w")
+            row = PinBoxes(self, size=50)
+            row.pack(padx=22, anchor="w")
+            self.rows.append(row)
         self.msg = ctk.CTkLabel(self, text="", text_color=DANGER, wraplength=330)
-        self.msg.pack(pady=(10, 0))
-        row = ctk.CTkFrame(self, fg_color="transparent")
-        row.pack(fill="x", padx=28, pady=12)
-        ctk.CTkButton(row, text="Cambiar", width=110, fg_color=ACCENT, hover_color=ACCENT_H,
+        self.msg.pack(pady=(12, 0))
+        bar = ctk.CTkFrame(self, fg_color="transparent")
+        bar.pack(fill="x", padx=28, pady=12)
+        ctk.CTkButton(bar, text="Cambiar", width=110, fg_color=ACCENT, hover_color=ACCENT_H,
                       command=self.accept).pack(side="right")
-        ctk.CTkButton(row, text="Cancelar", width=100, fg_color=CARD, hover_color=CARD_SEL,
+        ctk.CTkButton(bar, text="Cancelar", width=100, fg_color=CARD, hover_color=CARD_SEL,
                       command=self.destroy).pack(side="right", padx=8)
         self.bind("<Return>", lambda e: self.accept())
         self.bind("<Escape>", lambda e: self.destroy())
-        self.after(150, self.fields[0].focus_set)
+        self.after(150, lambda: App._safe(self.rows[0].focus_first))
         self.after(50, lambda: make_modal(self))
         self.after(200, lambda: self.app.apply_capture_to(self))
 
     def accept(self):
-        old, new, rep = (f.get() for f in self.fields)
-        if len(new) < 8:
-            return self.msg.configure(text="La nueva contraseña debe tener al menos 8 caracteres.")
+        old, new, rep = (r.value() for r in self.rows)
+        if not (core.is_pin(old) and core.is_pin(new) and core.is_pin(rep)):
+            return self.msg.configure(text="Escribe los 4 dígitos en las tres filas.", text_color=DANGER)
         if new != rep:
-            return self.msg.configure(text="Las contraseñas nuevas no coinciden.")
+            self.rows[2].clear()
+            return self.msg.configure(text="Los PIN nuevos no coinciden.", text_color=DANGER)
         self.msg.configure(text="Procesando…", text_color=MUTED)
         self.update_idletasks()
         try:
@@ -349,8 +557,10 @@ class PasswordDialog(ctk.CTkToplevel):
         except Exception as e:
             return self.msg.configure(text=f"Error: {e}", text_color=DANGER)
         if not ok:
-            return self.msg.configure(text="La contraseña actual es incorrecta.", text_color=DANGER)
-        messagebox.showinfo(core.APP_NAME, "Contraseña cambiada. Úsala la próxima vez que abras la app.", parent=self)
+            self.rows[0].clear()
+            self.rows[0].flash_error()
+            return self.msg.configure(text="El PIN actual es incorrecto.", text_color=DANGER)
+        messagebox.showinfo(core.APP_NAME, "PIN cambiado. Úsalo la próxima vez que abras la app.", parent=self)
         self.destroy()
 
 
@@ -380,8 +590,8 @@ class SettingsDialog(ctk.CTkToplevel):
         row.winfo_children()[-1].set(cur)
         self._switch("Bloquear al minimizar la ventana", "lock_on_minimize", s)
         self._switch("Ocultar la ventana en capturas de pantalla", "block_capture", s)
-        ctk.CTkButton(self, text="Cambiar contraseña…", height=36, fg_color=CARD, hover_color=CARD_SEL,
-                      command=lambda: PasswordDialog(app)).pack(fill="x", padx=28, pady=(12, 0))
+        ctk.CTkButton(self, text="Cambiar PIN…", height=36, fg_color=CARD, hover_color=CARD_SEL,
+                      command=lambda: PinDialog(app)).pack(fill="x", padx=28, pady=(12, 0))
 
         section("DISCRECIÓN")
         row = ctk.CTkFrame(self, fg_color="transparent")
@@ -783,36 +993,45 @@ class App(*_Base):
         self.center(440, 700)
         state = self.login_state
         creating = state == "create"
+        self.pw1 = self.pin1 = self.pin2 = None
+        self.login_auth = core.Vault.auth_kind() if state == "unlock" else "pin"
 
         card = ctk.CTkFrame(self, fg_color=PANEL, corner_radius=20)
         card.place(relx=0.5, rely=0.5, anchor="center", relwidth=0.88)
         ctk.CTkLabel(card, text="", image=logo_image(64)).pack(pady=(26, 6))
         ctk.CTkLabel(card, text=core.APP_NAME, font=ctk.CTkFont(size=28, weight="bold"), text_color=TEXT).pack()
-        sub = {"create": "Crea tu contraseña maestra", "unlock": "Ingresa para continuar",
+        sub = {"create": "Crea tu PIN de 4 dígitos",
+               "unlock": "Ingresa tu PIN" if self.login_auth == "pin" else "Ingresa con tu contraseña actual",
                "missing": "No se encuentran los datos"}[state]
         ctk.CTkLabel(card, text=sub, text_color=MUTED).pack(pady=(0, 16))
 
         self.login_msg = ctk.CTkLabel(card, text="", text_color=DANGER, wraplength=320)
         self.login_btn = None
-        self.pw2 = None
         if state == "missing":
             ctk.CTkLabel(card, text=f"Ubicación guardada:\n{self.login_dir}\n\nConecta la unidad (por ejemplo la USB) "
                                     "y pulsa Reintentar.", text_color=TEXT, wraplength=320,
                          font=ctk.CTkFont(size=12)).pack(padx=24)
-            self.pw1 = None
             self.login_btn = ctk.CTkButton(card, text="Reintentar", height=44, corner_radius=10, fg_color=ACCENT,
                                            hover_color=ACCENT_H, font=ctk.CTkFont(size=14, weight="bold"),
                                            command=self.retry_location)
             self.login_msg.pack(pady=(8, 0))
             self.login_btn.pack(fill="x", padx=28, pady=(8, 10))
         else:
-            self.pw1 = ctk.CTkEntry(card, placeholder_text="Contraseña", show="•", height=42, corner_radius=10,
-                                    fg_color=CARD, border_color=CARD)
-            self.pw1.pack(fill="x", padx=28)
-            if creating:
-                self.pw2 = ctk.CTkEntry(card, placeholder_text="Repite la contraseña", show="•", height=42,
+            if self.login_auth == "pin":
+                self.pin1 = PinBoxes(card, command=None if creating else self.submit_login)
+                self.pin1.pack(pady=(4, 0))
+                if creating:
+                    ctk.CTkLabel(card, text="Repite el PIN", text_color=MUTED,
+                                 font=ctk.CTkFont(size=12)).pack(pady=(14, 4))
+                    self.pin2 = PinBoxes(card)
+                    self.pin2.pack()
+            else:  # datos antiguos protegidos con contraseña: al entrar se pedirá cambiarla por un PIN
+                self.pw1 = ctk.CTkEntry(card, placeholder_text="Contraseña actual", show="•", height=42,
                                         corner_radius=10, fg_color=CARD, border_color=CARD)
-                self.pw2.pack(fill="x", padx=28, pady=(10, 0))
+                self.pw1.pack(fill="x", padx=28)
+                ctk.CTkLabel(card, text="Al entrar te pediremos cambiarla por un PIN de 4 dígitos.",
+                             text_color=MUTED, wraplength=300, font=ctk.CTkFont(size=11)).pack(pady=(8, 0))
+            if creating:
                 self.create_base = None
                 row = ctk.CTkFrame(card, fg_color="transparent")
                 row.pack(fill="x", padx=28, pady=(14, 0))
@@ -832,10 +1051,11 @@ class App(*_Base):
                                            font=ctk.CTkFont(size=14, weight="bold"), command=self.submit_login)
             self.login_btn.pack(fill="x", padx=28, pady=(8, 8))
             if creating:
-                ctk.CTkLabel(card, text="Mínimo 8 caracteres. Si la olvidas, no hay forma\nde recuperar tus archivos.",
+                ctk.CTkLabel(card, text="Si lo olvidas, no hay forma de recuperar tus archivos.",
                              text_color=MUTED, font=ctk.CTkFont(size=11)).pack(pady=(0, 6))
             self.bind("<Return>", lambda e: self.submit_login())
-            self.after(150, self.pw1.focus_set)
+            first = self.pin1.focus_first if self.pin1 else self.pw1.focus_set
+            self.after(150, lambda: self._safe(first))  # puede que la pantalla ya se haya redibujado
 
         links = ctk.CTkFrame(card, fg_color="transparent")
         links.pack(pady=(4, 18))
@@ -851,14 +1071,17 @@ class App(*_Base):
         try:
             fails, until = core.attempt_status()
             left = int(until - time.time()) + 1 if until > time.time() else 0
-            if left > 0:
-                self.login_btn.configure(state="disabled")
+            locked = left > 0
+            self.login_btn.configure(state="disabled" if locked else "normal")
+            if self.pin1 is not None and self.login_state == "unlock":
+                self.pin1.set_state("disabled" if locked else "normal")
+            if locked:
                 self.login_msg.configure(text=f"Demasiados intentos. Espera {left} s.", text_color=DANGER)
                 self._cd_job = self.after(500, self._lock_countdown)
-            else:
-                self.login_btn.configure(state="normal")
-                if self.login_msg.cget("text").startswith("Demasiados"):
-                    self.login_msg.configure(text="")
+            elif self.login_msg.cget("text").startswith("Demasiados"):
+                self.login_msg.configure(text="")
+                if self.pin1 is not None:
+                    self.pin1.focus_first()
         except tk.TclError:
             pass
 
@@ -914,20 +1137,28 @@ class App(*_Base):
         self.login_dir, self.login_state = folder, "unlock"
         self.settings = core.load_settings()
         self.show_login()
-        messagebox.showinfo(core.APP_NAME, "Respaldo restaurado. Ingresa con la contraseña que tenía ese respaldo.")
+        messagebox.showinfo(core.APP_NAME, "Respaldo restaurado. Ingresa con el acceso que tenía ese respaldo.")
 
     def submit_login(self):
-        if self.vault.key or self.login_state == "missing" or self.pw1 is None:
+        if self.vault.key or self.login_state == "missing":
             return
+        auth = getattr(self, "login_auth", "password")
+        creating = self.login_state == "create"
         try:
-            p1 = self.pw1.get()
-        except tk.TclError:
+            if creating:
+                p1, p2 = self.pin1.value(), self.pin2.value()
+            elif auth == "pin":
+                p1 = self.pin1.value()
+            else:
+                p1 = self.pw1.get()
+        except (tk.TclError, AttributeError):
             return
-        if self.login_state == "create":
-            if len(p1) < 8:
-                return self.login_msg.configure(text="Mínimo 8 caracteres.", text_color=DANGER)
-            if p1 != self.pw2.get():
-                return self.login_msg.configure(text="Las contraseñas no coinciden.", text_color=DANGER)
+        if creating:
+            if not core.is_pin(p1):
+                return self.login_msg.configure(text="Escribe los 4 dígitos del PIN.", text_color=DANGER)
+            if p1 != p2:
+                self.pin2.clear()
+                return self.login_msg.configure(text="Los PIN no coinciden.", text_color=DANGER)
             self.login_msg.configure(text="Creando…", text_color=MUTED)
             self.update_idletasks()
             try:
@@ -937,6 +1168,8 @@ class App(*_Base):
             self.login_state = "unlock"
             self.settings = core.load_settings()
         else:
+            if auth == "pin" and not core.is_pin(p1):
+                return self.login_msg.configure(text="Escribe los 4 dígitos del PIN.", text_color=DANGER)
             fails, until = core.attempt_status()
             if until > time.time():
                 return self._lock_countdown()
@@ -948,12 +1181,73 @@ class App(*_Base):
                 return self.login_msg.configure(text=f"Error: {e}", text_color=DANGER)
             if not ok:
                 fails, delay = core.register_fail()
-                self.pw1.delete(0, "end")
-                self.login_msg.configure(text="Contraseña incorrecta.", text_color=DANGER)
+                if self.pin1 is not None:
+                    self.pin1.clear()
+                    self.pin1.flash_error()
+                elif self.pw1 is not None:
+                    self.pw1.delete(0, "end")
+                self.login_msg.configure(text="PIN incorrecto." if auth == "pin" else "Contraseña incorrecta.",
+                                         text_color=DANGER)
                 if delay:
                     self._lock_countdown()
                 return
             core.register_success()
+            if auth != "pin":  # entró con una contraseña antigua: toca crear el PIN antes de continuar
+                self.unbind("<Return>")
+                return self.show_pin_setup()
+        self.unbind("<Return>")
+        self.show_main()
+
+    def show_pin_setup(self):
+        """Pantalla obligatoria para quien entró con una contraseña antigua: crear un PIN de 4 dígitos."""
+        self.clear_window()
+        self.unbind("<Return>")
+        self.minsize(400, 560)
+        self.center(440, 700)
+        card = ctk.CTkFrame(self, fg_color=PANEL, corner_radius=20)
+        card.place(relx=0.5, rely=0.5, anchor="center", relwidth=0.88)
+        ctk.CTkLabel(card, text="", image=logo_image(64)).pack(pady=(26, 6))
+        ctk.CTkLabel(card, text=core.APP_NAME, font=ctk.CTkFont(size=28, weight="bold"), text_color=TEXT).pack()
+        ctk.CTkLabel(card, text="Cambia tu contraseña por un PIN", text_color=TEXT,
+                     font=ctk.CTkFont(size=16, weight="bold")).pack(pady=(10, 4))
+        ctk.CTkLabel(card, text="El acceso ahora es con 4 dígitos. Elige tu PIN; tus archivos no se tocan.",
+                     text_color=MUTED, wraplength=300, font=ctk.CTkFont(size=12)).pack(padx=24, pady=(0, 14))
+        ctk.CTkLabel(card, text="PIN nuevo", text_color=MUTED, font=ctk.CTkFont(size=12)).pack(pady=(0, 4))
+        self.pin_a = PinBoxes(card)
+        self.pin_a.pack()
+        ctk.CTkLabel(card, text="Repite el PIN", text_color=MUTED, font=ctk.CTkFont(size=12)).pack(pady=(14, 4))
+        self.pin_b = PinBoxes(card)
+        self.pin_b.pack()
+        self.setup_msg = ctk.CTkLabel(card, text="", text_color=DANGER, wraplength=320)
+        self.setup_msg.pack(pady=(10, 0))
+        ctk.CTkButton(card, text="Guardar PIN", height=44, corner_radius=10, fg_color=ACCENT, hover_color=ACCENT_H,
+                      font=ctk.CTkFont(size=14, weight="bold"),
+                      command=self.submit_pin_setup).pack(fill="x", padx=28, pady=(8, 4))
+        ctk.CTkButton(card, text="Cancelar", height=28, fg_color="transparent", hover_color=CARD, text_color=MUTED,
+                      font=ctk.CTkFont(size=12), command=self.lock).pack(pady=(0, 18))
+        self.bind("<Return>", lambda e: self.submit_pin_setup())
+        self.after(150, lambda f=self.pin_a.focus_first: self._safe(f))
+        self.after(250, lambda: self.apply_capture_to(self))
+
+    def submit_pin_setup(self):
+        if not self.vault.key:
+            return
+        try:
+            a, b = self.pin_a.value(), self.pin_b.value()
+        except (tk.TclError, AttributeError):
+            return
+        if not core.is_pin(a):
+            return self.setup_msg.configure(text="Escribe los 4 dígitos del PIN.", text_color=DANGER)
+        if a != b:
+            self.pin_b.clear()
+            return self.setup_msg.configure(text="Los PIN no coinciden.", text_color=DANGER)
+        self.setup_msg.configure(text="Guardando…", text_color=MUTED)
+        self.update_idletasks()
+        try:
+            self.vault.rewrap(a)
+        except Exception as e:
+            return self.setup_msg.configure(text=f"No se pudo guardar: {e}", text_color=DANGER)
+        core.register_success()
         self.unbind("<Return>")
         self.show_main()
 
@@ -972,14 +1266,15 @@ class App(*_Base):
         self.side = side = ctk.CTkFrame(self, width=240, corner_radius=0, fg_color=PANEL)
         side.grid(row=0, column=0, sticky="nsew")
         side.pack_propagate(False)
-        ctk.CTkButton(side, text="Bloquear  (F12)", height=38, corner_radius=10, fg_color=CARD,
+        ctk.CTkButton(side, text="  Bloquear  (F12)", image=line_icon("power", TEXT, 18), compound="left", height=38, corner_radius=10, fg_color=CARD,
                       hover_color=CARD_SEL, command=self.lock).pack(side="bottom", fill="x", padx=16, pady=(6, 16))
-        ctk.CTkButton(side, text="⚙  Ajustes", height=38, corner_radius=10, fg_color=CARD, hover_color=CARD_SEL,
+        ctk.CTkButton(side, text="  Ajustes", image=line_icon("sliders", TEXT, 18), compound="left", height=38, corner_radius=10, fg_color=CARD, hover_color=CARD_SEL,
                       command=lambda: SettingsDialog(self)).pack(side="bottom", fill="x", padx=16, pady=(6, 0))
         self.del_original = ctk.CTkCheckBox(side, text="Triturar originales\nal agregar", text_color=MUTED,
                                             fg_color=ACCENT, hover_color=ACCENT_H, font=ctk.CTkFont(size=12))
         self.del_original.pack(side="bottom", anchor="w", padx=20, pady=(8, 4))
-        self.btn_add = ctk.CTkButton(side, text="＋  Agregar archivos", height=46, corner_radius=12,
+        self.btn_add = ctk.CTkButton(side, text="  Agregar archivos", image=line_icon("plus", "#ffffff", 20), compound="left",
+                                     height=46, corner_radius=12,
                                      fg_color=ACCENT, hover_color=ACCENT_H,
                                      font=ctk.CTkFont(size=14, weight="bold"), command=self.add_files)
         self.btn_add.pack(side="bottom", fill="x", padx=16, pady=(8, 0))
@@ -988,7 +1283,7 @@ class App(*_Base):
                      text_color=TEXT).pack(anchor="w", padx=22, pady=(24, 16))
         self.cat_btns = {}
         for key, label, icon in CATEGORIES:
-            b = ctk.CTkButton(side, text="", anchor="w", height=40, corner_radius=10, fg_color="transparent",
+            b = ctk.CTkButton(side, text="", image=line_icon(icon, MUTED, 20), compound="left", anchor="w", height=40, corner_radius=10, fg_color="transparent",
                               hover_color=CARD, text_color=TEXT, font=ctk.CTkFont(size=14),
                               command=lambda k=key: self.set_view("cat", k))
             b.pack(fill="x", padx=14, pady=1)
@@ -996,7 +1291,7 @@ class App(*_Base):
         head = ctk.CTkFrame(side, fg_color="transparent")
         head.pack(fill="x", padx=22, pady=(14, 0))
         ctk.CTkLabel(head, text="ÁLBUMES", text_color=MUTED, font=ctk.CTkFont(size=11, weight="bold")).pack(side="left")
-        ctk.CTkButton(head, text="＋", width=28, height=24, fg_color=CARD, hover_color=CARD_SEL,
+        ctk.CTkButton(head, text="", image=line_icon("plus", TEXT, 14), width=28, height=24, fg_color=CARD, hover_color=CARD_SEL,
                       command=self.new_album).pack(side="right")
         self.album_frame = ctk.CTkScrollableFrame(side, fg_color="transparent", scrollbar_button_color=CARD,
                                                   scrollbar_button_hover_color=CARD_SEL)
@@ -1097,7 +1392,7 @@ class App(*_Base):
         if self.btn_update is not None and self.btn_update.winfo_exists():
             return
         self.btn_update = ctk.CTkButton(
-            self.side, text="⬆  Actualización pendiente", height=40, corner_radius=10, fg_color=TEXT,
+            self.side, text="  Actualización pendiente", image=line_icon("arrow_up", BG, 18), compound="left", height=40, corner_radius=10, fg_color=TEXT,
             hover_color="#d4d4d8", text_color=BG, font=ctk.CTkFont(size=13, weight="bold"),
             command=self.start_update)
         self.btn_update.pack(side="bottom", fill="x", padx=16, pady=(6, 0), before=self.del_original)
@@ -1167,7 +1462,7 @@ class App(*_Base):
                 acount[i["album"]] = acount.get(i["album"], 0) + 1
         for key, (btn, label, icon) in self.cat_btns.items():
             active = self.view == ("cat", key)
-            btn.configure(text=f"  {icon}   {label}   ({counts[key]})",
+            btn.configure(text=f"  {label}   ({counts[key]})", image=line_icon(icon, ACCENT if active else MUTED, 20),
                           fg_color=ACCENT_DIM if active else "transparent",
                           text_color="white" if active else TEXT)
         for w in self.album_frame.winfo_children():
@@ -1177,7 +1472,8 @@ class App(*_Base):
                          font=ctk.CTkFont(size=11), justify="left").pack(anchor="w", padx=10, pady=6)
         for a in self.vault.albums:
             active = self.view == ("album", a)
-            b = ctk.CTkButton(self.album_frame, text=f"  ◈   {shorten(a, 16)}   ({acount.get(a, 0)})", anchor="w",
+            b = ctk.CTkButton(self.album_frame, text=f"  {shorten(a, 16)}   ({acount.get(a, 0)})",
+                              image=line_icon("folder", ACCENT if active else MUTED, 18), compound="left", anchor="w",
                               height=36, corner_radius=10, hover_color=CARD, font=ctk.CTkFont(size=13),
                               fg_color=ACCENT_DIM if active else "transparent",
                               text_color="white" if active else TEXT,

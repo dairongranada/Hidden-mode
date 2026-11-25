@@ -1,18 +1,18 @@
 # Hidden-mode
 
-Aplicación de escritorio para Windows que guarda archivos de forma privada, cifrados y protegidos con una contraseña maestra.
+Aplicación de escritorio para Windows que guarda archivos de forma privada, cifrados y protegidos con un PIN de 4 dígitos.
 
 by @dairongranadaa
 
 ## Qué hace
 
 - Guarda archivos (imágenes, videos y documentos) cifrados con **AES-256-GCM**.
-- La clave se protege con tu contraseña usando **scrypt**. Los nombres de los archivos, los álbumes y las miniaturas también van cifrados.
+- La clave se protege con tu PIN usando **scrypt**. Quien tenía una contraseña antigua la cambia por un PIN al entrar, sin recifrar los archivos. Los nombres de los archivos, los álbumes y las miniaturas también van cifrados.
 - Galería con miniaturas, búsqueda, orden y álbumes.
 - Visor de imágenes con zoom, rotación y presentación.
 - Arrastrar y soltar archivos o carpetas.
 - Bloqueo automático por inactividad, al minimizar y al bloquear Windows. `F12` o `Ctrl+L` bloquean al instante.
-- Espera creciente tras varios intentos fallidos de contraseña.
+- Espera creciente tras varios intentos fallidos de PIN.
 - Respaldo y restauración de toda la colección en un solo archivo (`.vbk`).
 - Ubicación elegible al crearla (por ejemplo, una unidad USB).
 
@@ -28,7 +28,7 @@ pip install -r requirements.txt
 python app.py
 ```
 
-La primera vez pide crear una contraseña maestra.
+La primera vez pide crear un PIN de 4 dígitos.
 
 ## Compilar el ejecutable y el instalador
 
@@ -70,8 +70,9 @@ La primera vez, en cada PC hay que instalar a mano una versión que ya incluya e
 
 ## Seguridad: lo que debes saber
 
-- **Si olvidas la contraseña, no hay forma de recuperar los archivos.** Haz un respaldo y guárdalo en otro lugar.
-- Los atributos de oculto y los nombres genéricos de las carpetas solo dificultan encontrarlas por casualidad. La protección real es el cifrado y la contraseña: usa una larga.
+- **Si olvidas el PIN, no hay forma de recuperar los archivos.** Haz un respaldo y guárdalo en otro lugar.
+- **Un PIN de 4 dígitos tiene solo 10.000 combinaciones.** La espera tras intentos fallidos solo frena a quien teclea en la ventana. Quien consiga una copia de la carpeta de datos o de un respaldo (`.vbk`) puede probar todos los PIN por su cuenta en pocos minutos. No dejes copias de los datos en sitios compartidos y no guardes aquí nada que no puedas permitirte exponer.
+- Los atributos de oculto y los nombres genéricos de las carpetas solo dificultan encontrarlas por casualidad. La protección real es el cifrado y el PIN.
 - La espera tras intentos fallidos solo frena a quien adivina desde la ventana de la app.
 - Al abrir un video o un documento se descifra una copia temporal, que se sobrescribe y se borra al bloquear o cerrar.
 - El borrado de los originales (si lo activas) los sobrescribe antes de eliminarlos, pero en SSD o en carpetas sincronizadas (como OneDrive) no se puede garantizar el borrado físico.
