@@ -51,7 +51,15 @@ Filename: "{app}\{#AppExe}"; Description: "Abrir {#AppName}"; Flags: nowait post
 Filename: "{app}\{#AppExe}"; Flags: nowait skipifnotsilent; Check: Relaunch
 
 [Code]
+function SetEnvironmentVariable(lpName, lpValue: String): Boolean;
+  external 'SetEnvironmentVariableW@kernel32.dll stdcall';
+
 function Relaunch: Boolean;
 begin
   Result := ExpandConstant('{param:RELAUNCH|0}') = '1';
+  { La app que lanzó este instalador es de PyInstaller: sin esto, la copia reabierta hereda su carpeta
+    temporal (ya borrada) y falla con «Failed to load Python DLL». Así también funciona al actualizar
+    desde versiones antiguas que aún no limpian el entorno. }
+  if Result then
+    SetEnvironmentVariable('PYINSTALLER_RESET_ENVIRONMENT', '1');
 end;

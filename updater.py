@@ -132,6 +132,9 @@ def download_verified(info: dict, progress=None) -> str:
 def launch_installer(path: str, extra=()):
     """Lanza el instalador en modo silencioso, desligado de esta app (que debe cerrarse enseguida)."""
     flags = 0x00000008 | 0x00000200  # DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP
+    # El instalador reabrirá esta app cuando esta ya se haya cerrado. Sin esta variable, la copia nueva
+    # hereda la carpeta temporal de la vieja (que se borra al cerrar) y falla con «Failed to load Python DLL».
+    env = {**os.environ, "PYINSTALLER_RESET_ENVIRONMENT": "1"}
     subprocess.Popen([path, "/SILENT", "/SUPPRESSMSGBOXES", "/NORESTART", "/CLOSEAPPLICATIONS",
                       "/FORCECLOSEAPPLICATIONS", "/RELAUNCH=1", *extra],
-                     creationflags=flags, close_fds=True, cwd=os.path.dirname(path))
+                     creationflags=flags, close_fds=True, cwd=os.path.dirname(path), env=env)
