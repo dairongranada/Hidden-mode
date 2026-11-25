@@ -38,6 +38,24 @@ powershell -ExecutionPolicy Bypass -File build.ps1
 
 Genera `dist\Boveda.exe` y, si tienes [Inno Setup 6](https://jrsoftware.org/isinfo.php) instalado, `installer\Boveda_Setup.exe`.
 
+## Actualizaciones
+
+La app busca nuevas versiones en las *Releases* de este repositorio al abrir la bóveda (se puede desactivar en Ajustes). Si hay una, aparece el botón «Actualización pendiente»: descarga el instalador, comprueba su firma digital (Ed25519) y se actualiza sola. La bóveda no se toca.
+
+Publicar una versión nueva, desde el PC donde desarrollas:
+
+```powershell
+# una sola vez: crea la clave de firma y pega la clave pública que imprime en updater.py (PUBLIC_KEY_B64)
+python release.py --keygen
+
+# cada versión: sube VERSION en vault.py, haz commit y push, y luego
+python release.py --notes "Qué cambió"
+```
+
+`release.py` compila, firma el instalador y crea la release en GitHub (pide un token con permiso *Contents: Read and write*; no lo guarda). La clave privada se guarda en `%USERPROFILE%\.hidden-mode\` y nunca debe subirse al repositorio. Si la pierdes, las apps ya instaladas no aceptarán más actualizaciones y habrá que reinstalar a mano una vez.
+
+La primera vez, en cada PC hay que instalar a mano una versión que ya incluya el actualizador; de ahí en adelante se actualiza sola.
+
 ## Estructura
 
 | Archivo | Descripción |
@@ -46,6 +64,8 @@ Genera `dist\Boveda.exe` y, si tienes [Inno Setup 6](https://jrsoftware.org/isin
 | `app.py` | Interfaz (customtkinter). |
 | `installer.iss` | Script de Inno Setup para el instalador. |
 | `build.ps1` | Compila el `.exe` y el instalador. |
+| `updater.py` | Búsqueda, descarga y verificación de actualizaciones. |
+| `release.py` | Publica una versión firmada en GitHub. |
 | `requirements.txt` | Dependencias con versiones fijas. |
 
 ## Seguridad: lo que debes saber

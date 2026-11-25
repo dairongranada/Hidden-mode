@@ -2,7 +2,10 @@
 ; Compilar:  ISCC.exe installer.iss   ->  installer\Boveda_Setup.exe
 
 #define AppName "Bóveda"
-#define AppVersion "2.0.0"
+; build.ps1 pasa la versión real (la de vault.py) con /DAppVersion=...
+#ifndef AppVersion
+  #define AppVersion "2.1.0"
+#endif
 #define AppExe "Boveda.exe"
 
 [Setup]
@@ -39,8 +42,16 @@ Source: "dist\{#AppExe}"; DestDir: "{app}"; Flags: ignoreversion
 Name: "{autoprograms}\{#AppName}"; Filename: "{app}\{#AppExe}"
 Name: "{autodesktop}\{#AppName}"; Filename: "{app}\{#AppExe}"; Tasks: desktopicon
 
-[Run]
-Filename: "{app}\{#AppExe}"; Description: "Abrir {#AppName}"; Flags: nowait postinstall skipifsilent
-
 ; Importante: NO se borra la bóveda al desinstalar (está en una carpeta CLR_xxxx o CLRCache dentro de
 ; %LOCALAPPDATA%\Microsoft, o donde la hayas elegido), así no pierdes tus archivos al reinstalar o actualizar.
+
+[Run]
+Filename: "{app}\{#AppExe}"; Description: "Abrir {#AppName}"; Flags: nowait postinstall skipifsilent
+; Actualización automática desde la app: el instalador corre en silencio con /RELAUNCH=1 y reabre la app al terminar.
+Filename: "{app}\{#AppExe}"; Flags: nowait skipifnotsilent; Check: Relaunch
+
+[Code]
+function Relaunch: Boolean;
+begin
+  Result := ExpandConstant('{param:RELAUNCH|0}') = '1';
+end;

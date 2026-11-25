@@ -4,6 +4,7 @@ import glob
 import io
 import os
 import queue
+import shutil
 import sys
 import tempfile
 import threading
@@ -14,6 +15,7 @@ from tkinter import filedialog, messagebox
 import customtkinter as ctk
 from PIL import Image, ImageDraw, ImageFont, ImageOps, ImageTk
 
+import updater
 import vault as core
 
 try:
@@ -131,6 +133,8 @@ def purge_stale_temp():
     for d in glob.glob(os.path.join(tempfile.gettempdir(), "vlt_*")):
         if os.path.isdir(d):
             core.secure_rmtree(d)
+    for d in glob.glob(os.path.join(tempfile.gettempdir(), "bvu_*")):  # instaladores de actualizaciones ya usados
+        shutil.rmtree(d, ignore_errors=True)
 
 
 # ---------------------------------------------------------------- imágenes
@@ -350,7 +354,7 @@ class SettingsDialog(ctk.CTkToplevel):
         self.configure(fg_color=PANEL)
         self.resizable(False, False)
         self.transient(app)
-        center_over(self, app, 460, 560)
+        center_over(self, app, 460, 680)
 
         def section(text):
             ctk.CTkLabel(self, text=text, text_color=MUTED, font=ctk.CTkFont(size=11, weight="bold")
@@ -386,6 +390,17 @@ class SettingsDialog(ctk.CTkToplevel):
                       command=lambda: (self.destroy(), app.backup_vault())).pack(fill="x", padx=28)
         ctk.CTkLabel(self, text="Para restaurar, usa «Restaurar respaldo» en la pantalla de acceso.",
                      text_color=MUTED, font=ctk.CTkFont(size=11)).pack(padx=28, anchor="w")
+
+        section("ACTUALIZACIONES")
+        row = ctk.CTkFrame(self, fg_color="transparent")
+        row.pack(fill="x", padx=28)
+        sw = ctk.CTkSwitch(row, text="Buscar al abrir la bóveda", progress_color=ACCENT, text_color=TEXT,
+                           command=lambda: app.update_setting("check_updates", bool(sw.get())))
+        sw.pack(side="left")
+        if s.get("check_updates", True):
+            sw.select()
+        ctk.CTkButton(row, text="Buscar ahora", width=110, height=32, fg_color=CARD, hover_color=CARD_SEL,
+                      command=lambda: app.check_updates(manual=True)).pack(side="right")
 
         section("UBICACIÓN DE LA BÓVEDA")
         ctk.CTkLabel(self, text=core.DATA_DIR, text_color=TEXT, wraplength=400, justify="left",
@@ -656,6 +671,8 @@ class App(*_Base):
         self.pending = set()
         self.busy = False
         self.gen = 0
+        self.update_info = None   # datos de la actualización disponible
+        self.btn_update = None
         self.create_base = None
         self._layout_job = self._search_job = self._scroll_job = self._cd_job = None
         self.last_activity = time.time()
@@ -942,7 +959,8 @@ class App(*_Base):
         self.view = ("cat", "Todos")
         self.sel.clear()
 
-        side = ctk.CTkFrame(self, width=240, corner_radius=0, fg_color=PANEL)
+        self.btn_update = None
+        self.side = side = ctk.CTkFrame(self, width=240, corner_radius=0, fg_color=PANEL)
         side.grid(row=0, column=0, sticky="nsew")
         side.pack_propagate(False)
         ctk.CTkButton(side, text="🔒  Bloquear  (F12)", height=38, corner_radius=10, fg_color=CARD,
@@ -1025,6 +1043,97 @@ class App(*_Base):
         self.refresh()
         self._scroll_job = self.after(350, self._scroll_check)
         self.after(250, lambda: self.apply_capture_to(self))
+        if self.update_info:
+            self.show_update_button()
+        elif self.settings.get("check_updates", True):
+            self.after(2500, lambda g=self.gen: self._auto_check(g))
+
+    # --- actualizaciones
+    def _auto_check(self, gen):
+        """Comprobación al abrir: solo si es la misma sesión y la opción sigue activa."""
+        if gen == self.gen and self.settings.get("check_updates", True):
+            self.check_updates()
+
+    def check_updates(self, manual=False):
+        if not self.vault.key:
+            return
+        gen = self.gen
+
+        def work():
+            info, err = None, None
+            try:
+                info = updater.fetch_latest()
+            except updater.UpdateError as e:
+                err = str(e)
+            except Exception:
+                err = "No se pudo comprobar."
+            self.post(self._update_checked, gen, info, err, manual)
+
+        threading.Thread(target=work, daemon=True).start()
+
+    def _update_checked(self, gen, info, err, manual):
+        if gen != self.gen:
+            return
+        if info and updater.is_newer(info["version"], core.VERSION):
+            self.update_info = info
+            self.show_update_button()
+            if manual:
+                self.start_update()
+        elif manual:
+            messagebox.showinfo("Actualizaciones", f"No se pudo comprobar.\n{err}" if err
+                                else "Ya tienes la última versión.", parent=self)
+
+    def show_update_button(self):
+        if self.btn_update is not None and self.btn_update.winfo_exists():
+            return
+        self.btn_update = ctk.CTkButton(
+            self.side, text="⬆  Actualización pendiente", height=40, corner_radius=10, fg_color="#2e9e6b",
+            hover_color="#27855a", font=ctk.CTkFont(size=13, weight="bold"), command=self.start_update)
+        self.btn_update.pack(side="bottom", fill="x", padx=16, pady=(6, 0), before=self.del_original)
+
+    def start_update(self):
+        info = self.update_info
+        if not info or self.busy:
+            return
+        notes = info["notes"].strip()[:500]
+        if not messagebox.askyesno(
+                "Actualización disponible",
+                f"Hay una versión nueva ({info['version']}).\n\n" + (f"{notes}\n\n" if notes else "") +
+                "Se descargará, se comprobará su firma y se instalará. La app se cerrará y volverá a abrirse sola.\n"
+                "Tus archivos no se tocan.\n\n¿Actualizar ahora?", parent=self):
+            return
+        gen = self.gen
+        self.set_busy(True)
+
+        def work():
+            try:
+                path = updater.download_verified(
+                    info, lambda f: self.post(self._progress, gen, f, f"Descargando actualización… {int(f * 100)}%"))
+                self.post(self._update_ready, gen, path)
+            except updater.UpdateError as e:
+                self.post(self._update_failed, gen, str(e))
+            except Exception as e:
+                self.post(self._update_failed, gen, f"No se pudo actualizar: {e}")
+
+        threading.Thread(target=work, daemon=True).start()
+
+    def _update_failed(self, gen, msg):
+        if gen != self.gen:
+            return
+        self.set_busy(False)
+        self._update_status()
+        messagebox.showerror("Actualización", msg, parent=self)
+
+    def _update_ready(self, gen, path):
+        if gen != self.gen:
+            return
+        try:
+            updater.launch_installer(path)
+        except Exception as e:
+            return self._update_failed(gen, f"No se pudo iniciar el instalador: {e}")
+        self.set_status("Instalando la actualización…")
+        self.clean_tmp()
+        self.after(300, self.destroy)  # el instalador necesita que esta app ya no esté abierta
 
     # --- álbumes y vistas
     def set_view(self, kind, value):

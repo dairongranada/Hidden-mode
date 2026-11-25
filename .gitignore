@@ -9,6 +9,9 @@ vault_data/
 *.vbk
 *.dat
 
+# Claves de firma de actualizaciones: jamás al repositorio
+*.pem
+
 # Python / pruebas locales
 __pycache__/
 *.pyc
