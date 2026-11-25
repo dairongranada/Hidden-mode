@@ -55,7 +55,7 @@ Name: "spanish"; MessagesFile: "compiler:Languages\Spanish.isl"
 
 [Messages]
 WelcomeLabel1={#AppName}
-WelcomeLabel2=Se instalará en tu equipo en unos segundos.%n%nPulsa Siguiente para continuar.
+WelcomeLabel2=Se instalará en tu equipo en unos segundos.
 FinishedHeadingLabel=Todo listo
 FinishedLabel={#AppName} ya está instalada. La encontrarás en el menú Inicio.
 
