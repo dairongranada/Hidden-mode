@@ -25,15 +25,15 @@ except Exception:  # la app funciona igual sin arrastrar y soltar
     HAS_DND = False
 
 # ---------------------------------------------------------------- estilo
-BG = "#0f1016"
-PANEL = "#171923"
-CARD = "#1f2230"
-CARD_SEL = "#2d2f52"
-TEXT = "#e8e9f0"
-MUTED = "#8b8fa8"
-ACCENT = "#7c5cff"
-ACCENT_H = "#6a49f0"
-ACCENT_DIM = "#2a2550"
+BG = "#0a0a0b"          # negro
+PANEL = "#131315"       # negro suave (barra lateral, tarjetas de acceso)
+CARD = "#1d1e22"        # gris muy oscuro
+CARD_SEL = "#1c2b45"    # azul oscuro (selección)
+TEXT = "#f4f4f5"        # blanco
+MUTED = "#8d9099"       # gris
+ACCENT = "#2f7bff"      # azul
+ACCENT_H = "#1f63d6"
+ACCENT_DIM = "#16294a"  # azul muy oscuro (opción activa del menú)
 DANGER = "#e5484d"
 DANGER_H = "#c93a3f"
 
@@ -148,12 +148,12 @@ def placeholder(kind, name):
     if key in _placeholder_cache:
         return _placeholder_cache[key]
     s = THUMB * 2
-    img = Image.new("RGB", (s, s), "#262a3f")
+    img = Image.new("RGB", (s, s), "#1b1c20")
     d = ImageDraw.Draw(img)
     if kind == "Imagen":
         d.polygon([(s * 0.18, s * 0.72), (s * 0.42, s * 0.38), (s * 0.58, s * 0.6), (s * 0.7, s * 0.48),
-                   (s * 0.84, s * 0.72)], fill="#3c4160")
-        d.ellipse((s * 0.64, s * 0.22, s * 0.78, s * 0.36), fill="#3c4160")
+                   (s * 0.84, s * 0.72)], fill="#3a3c44")
+        d.ellipse((s * 0.64, s * 0.22, s * 0.78, s * 0.36), fill="#3a3c44")
     elif kind == "Video":
         c, r = s // 2, int(s * 0.27)
         d.ellipse((c - r, c - r, c + r, c + r), fill=ACCENT)
@@ -162,11 +162,11 @@ def placeholder(kind, name):
     else:
         x0, y0, x1, y1 = int(s * 0.29), int(s * 0.16), int(s * 0.71), int(s * 0.84)
         fold = int(s * 0.12)
-        d.polygon([(x0, y0), (x1 - fold, y0), (x1, y0 + fold), (x1, y1), (x0, y1)], fill="#3c4160")
-        d.polygon([(x1 - fold, y0), (x1, y0 + fold), (x1 - fold, y0 + fold)], fill="#565c85")
+        d.polygon([(x0, y0), (x1 - fold, y0), (x1, y0 + fold), (x1, y1), (x0, y1)], fill="#3a3c44")
+        d.polygon([(x1 - fold, y0), (x1, y0 + fold), (x1 - fold, y0 + fold)], fill="#5a5d68")
         for i in range(3):
             y = int(s * (0.34 + i * 0.07))
-            d.line((x0 + 20, y, x1 - 20, y), fill="#6b7199", width=6)
+            d.line((x0 + 20, y, x1 - 20, y), fill="#71747f", width=6)
         d.rounded_rectangle((x0 + 14, int(s * 0.62), x1 - 14, int(s * 0.76)), radius=12, fill=ACCENT)
         d.text(((x0 + x1) // 2, int(s * 0.69)), ext, font=ImageFont.load_default(size=int(s * 0.09)),
                anchor="mm", fill="white")
@@ -466,7 +466,7 @@ class Viewer(ctk.CTkToplevel):
         self.title("Visor")
         self.geometry("1100x760")
         self.minsize(560, 420)
-        self.configure(fg_color="#08090d")
+        self.configure(fg_color="#050506")
         self.protocol("WM_DELETE_WINDOW", self.close)
 
         bar = ctk.CTkFrame(self, fg_color=PANEL, height=56, corner_radius=0)
@@ -486,7 +486,7 @@ class Viewer(ctk.CTkToplevel):
         self.info = ctk.CTkLabel(bar, text="", text_color=TEXT)
         self.info.pack(side="left", expand=True)
 
-        self.canvas = tk.Canvas(self, bg="#08090d", highlightthickness=0)
+        self.canvas = tk.Canvas(self, bg="#050506", highlightthickness=0)
         self.canvas.pack(fill="both", expand=True)
         self.canvas.bind("<Configure>", self._on_cfg)
         self.canvas.bind("<MouseWheel>", self._on_wheel)
@@ -1087,8 +1087,9 @@ class App(*_Base):
         if self.btn_update is not None and self.btn_update.winfo_exists():
             return
         self.btn_update = ctk.CTkButton(
-            self.side, text="⬆  Actualización pendiente", height=40, corner_radius=10, fg_color="#2e9e6b",
-            hover_color="#27855a", font=ctk.CTkFont(size=13, weight="bold"), command=self.start_update)
+            self.side, text="⬆  Actualización pendiente", height=40, corner_radius=10, fg_color=TEXT,
+            hover_color="#d4d4d8", text_color=BG, font=ctk.CTkFont(size=13, weight="bold"),
+            command=self.start_update)
         self.btn_update.pack(side="bottom", fill="x", padx=16, pady=(6, 0), before=self.del_original)
 
     def start_update(self):
