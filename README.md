@@ -36,7 +36,7 @@ La primera vez pide crear un PIN de 4 dígitos.
 powershell -ExecutionPolicy Bypass -File build.ps1
 ```
 
-Genera `dist\Notas.exe` y, si tienes [Inno Setup 6](https://jrsoftware.org/isinfo.php) instalado, `installer\Boveda_Setup.exe`.
+Genera `dist\HakoSafe.exe` y, si tienes [Inno Setup 6](https://jrsoftware.org/isinfo.php) instalado, `installer\HakoSafe-Setup.exe`.
 
 ## Actualizaciones
 

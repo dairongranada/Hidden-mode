@@ -27,8 +27,9 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
 REPO = "dairongranada/Hidden-mode"
 API_LATEST = f"https://api.github.com/repos/{REPO}/releases/latest"
 DOWNLOAD_PREFIX = f"https://github.com/{REPO}/releases/download/"
-INSTALLER_NAME = "Boveda_Setup.exe"
-SIG_NAME = INSTALLER_NAME + ".sig"
+INSTALLER_NAME = "HakoSafe-Setup.exe"
+# Nombre que usaban las versiones hasta la 2.3.0: se sigue publicando una copia para que puedan actualizarse.
+LEGACY_INSTALLER_NAME = "Boveda_Setup.exe"
 PUBLIC_KEY_B64 = "cwXWuZoBB5ExAcEhVcSgZrHVp/9GPBgyOBSLCSntuLM="  # clave pública Ed25519 (32 bytes en base64); la genera `python release.py --keygen`
 MAX_INSTALLER = 400 * 1024 * 1024
 USER_AGENT = "Hidden-mode-updater"
@@ -68,9 +69,10 @@ def fetch_latest():
     except (OSError, ValueError):
         raise UpdateError("No se pudo conectar con GitHub.")
     assets = {a.get("name"): a for a in data.get("assets", []) if isinstance(a, dict)}
-    if INSTALLER_NAME not in assets or SIG_NAME not in assets or not data.get("tag_name"):
+    name = next((n for n in (INSTALLER_NAME, LEGACY_INSTALLER_NAME) if n in assets and n + ".sig" in assets), None)
+    if name is None or not data.get("tag_name"):
         return None
-    urls = (assets[INSTALLER_NAME].get("browser_download_url", ""), assets[SIG_NAME].get("browser_download_url", ""))
+    urls = (assets[name].get("browser_download_url", ""), assets[name + ".sig"].get("browser_download_url", ""))
     if not all(u.startswith(DOWNLOAD_PREFIX) for u in urls):
         return None
     return {
@@ -78,7 +80,7 @@ def fetch_latest():
         "notes": data.get("body") or "",
         "installer_url": urls[0],
         "sig_url": urls[1],
-        "size": int(assets[INSTALLER_NAME].get("size") or 0),
+        "size": int(assets[name].get("size") or 0),
     }
 
 

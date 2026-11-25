@@ -97,7 +97,7 @@ def api(method, url, token, body=None, raw=None, ctype="application/json", timeo
         die(f"GitHub respondió {e.code}: {detail}")
 
 
-def release(notes: str):
+def release(notes: str, legacy: bool = True):
     version = current_version()
     tag = f"v{version}"
     if not updater.PUBLIC_KEY_B64:
@@ -118,8 +118,12 @@ def release(notes: str):
     rel = api("POST", f"https://api.github.com/repos/{updater.REPO}/releases", token, {
         "tag_name": tag, "target_commitish": "main", "name": tag, "body": notes or f"Versión {version}",
         "draft": False, "prerelease": False})
-    for path, ctype in ((INSTALLER, "application/octet-stream"), (sig_path, "text/plain")):
-        name = os.path.basename(path)
+    uploads = [(INSTALLER, updater.INSTALLER_NAME, "application/octet-stream"),
+               (sig_path, updater.INSTALLER_NAME + ".sig", "text/plain")]
+    if legacy:  # copia con el nombre antiguo, para que las apps hasta la 2.3.0 puedan actualizarse
+        uploads += [(INSTALLER, updater.LEGACY_INSTALLER_NAME, "application/octet-stream"),
+                    (sig_path, updater.LEGACY_INSTALLER_NAME + ".sig", "text/plain")]
+    for path, name, ctype in uploads:
         print(f"Subiendo {name} ...")
         with open(path, "rb") as f:
             payload = f.read()
@@ -132,5 +136,7 @@ if __name__ == "__main__":
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--keygen", action="store_true", help="crea la clave de firma (una sola vez)")
     ap.add_argument("--notes", default="", help="texto que verán los usuarios al actualizar")
+    ap.add_argument("--no-legacy", action="store_true",
+                    help="no subir la copia con el nombre antiguo (úsalo cuando todas las apps sean 2.3.1 o más)")
     args = ap.parse_args()
-    keygen() if args.keygen else release(args.notes)
+    keygen() if args.keygen else release(args.notes, legacy=not args.no_legacy)
