@@ -22,7 +22,7 @@ from cryptography.exceptions import InvalidTag
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from cryptography.hazmat.primitives.kdf.scrypt import Scrypt
 
-VERSION = "2.1.0"
+VERSION = "2.1.1"
 MAGIC = b"VLT1"
 CHUNK = 1024 * 1024  # 1 MB
 FILE_EXT = ".dat"

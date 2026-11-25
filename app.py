@@ -405,7 +405,7 @@ class SettingsDialog(ctk.CTkToplevel):
         section("UBICACIÓN DE LA BÓVEDA")
         ctk.CTkLabel(self, text=core.DATA_DIR, text_color=TEXT, wraplength=400, justify="left",
                      font=ctk.CTkFont(size=11)).pack(padx=28, anchor="w")
-        ctk.CTkLabel(self, text="F12 o Ctrl+L bloquean al instante     ·     by @dairongranadaa",
+        ctk.CTkLabel(self, text=f"F12 o Ctrl+L bloquean al instante     ·     by @dairongranadaa  ·  v{core.VERSION}",
                      text_color=MUTED, font=ctk.CTkFont(size=11)).pack(side="bottom", pady=14)
         self.bind("<Escape>", lambda e: self.destroy())
         self.after(50, lambda: make_modal(self))
